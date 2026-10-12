@@ -1,0 +1,40 @@
+name: bramhkanti
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: bramhkanti-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
+    ports:
+      # Bound to loopback only; host port chosen to avoid 5432/5433 used by other projects
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5442}:5432"
+    volumes:
+      - bramhkanti_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: bramhkanti-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:${REDIS_HOST_PORT:-6389}:6379"
+    volumes:
+      - bramhkanti_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  bramhkanti_pg_data:
+  bramhkanti_redis_data:

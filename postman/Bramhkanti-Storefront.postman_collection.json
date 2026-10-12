@@ -1,0 +1,1591 @@
+{
+  "info": {
+    "_postman_id": "37a495b5-68d5-4f47-9d2c-082995856dab",
+    "name": "Bramhkanti Storefront API",
+    "description": "Store API for the Bramhkanti storefront (Medusa 2.21.2 backend).\n\nSetup: import the environment file, set `publishable_key` (Admin > Settings > Publishable API Keys > 'Bramhkanti Storefront'), then run folders top to bottom. Test scripts save ids (region_id, product_id, variant_id, cart_id, payment_collection_id, order_id) into the environment automatically.\n\nMoney: amounts are rupees (major unit) and GST-inclusive, except Razorpay session `data.amount`, which is paise.\n\nFull guide: STOREFRONT_INTEGRATION.md",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [],
+  "item": [
+    {
+      "name": "1. Store setup",
+      "description": "Run once; caches region_id.",
+      "item": [
+        {
+          "name": "Health check",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Plain-text `OK`. Does not need the publishable key."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List regions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/store/regions",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "store",
+                "regions"
+              ]
+            },
+            "description": "Single region: India / INR. Saves `region_id`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "const json = pm.response.json();",
+                  "const india = json.regions.find(r => r.currency_code === 'inr');",
+                  "pm.expect(india, 'India region').to.exist;",
+                  "pm.environment.set('region_id', india.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Brand (logo, name, tagline)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/store/brand",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "store",
+                "brand"
+              ]
+            },
+            "description": "Custom endpoint. Returns store name, logo_url and tagline for header/footer."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "const json = pm.response.json();",
+                  "pm.expect(json.brand).to.have.property('logo_url');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List categories",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/store/product-categories",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "store",
+                "product-categories"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Products",
+      "description": "Only PUBLISHED products with prices are returned. Drafts are hidden.",
+      "item": [
+        {
+          "name": "List products",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/store/products?region_id={{region_id}}&limit=20&offset=0&fields=*variants.calculated_price,%2Bvariants.inventory_quantity",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "store",
+                "products"
+              ],
+              "query": [
+                {
+                  "key": "region_id",
+                  "value": "{{region_id}}"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                },
+                {
+                  "key": "fields",
+                  "value": "*variants.calculated_price,%2Bvariants.inventory_quantity"
+                }
+              ]
+            },
+            "description": "Saves first product's `product_id`, `product_handle` and an in-stock `variant_id`.\n`calculated_price.calculated_amount` is rupees, GST-inclusive."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "const json = pm.response.json();",
+                  "if (json.products.length) {",
+                  "  const p = json.products[0];",
+                  "  pm.environment.set('product_id', p.id);",
+                  "  pm.environment.set('product_handle', p.handle);",
+                  "  const v = p.variants.find(v => (v.inventory_quantity ?? 1) > 0) || p.variants[0];",
+                  "  pm.environment.set('variant_id', v.id);",
+                  "} else { console.warn('No published products yet - publish one in the admin'); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Product by handle",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/store/products?handle={{product_handle}}&region_id={{region_id}}&fields=*variants.calculated_price,%2Bvariants.inventory_quantity,*images,*categories",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "store",
+                "products"
+              ],
+              "query": [
+                {
+                  "key": "handle",
+                  "value": "{{product_handle}}"
+                },
+                {
+                  "key": "region_id",
+                  "value": "{{region_id}}"
+                },
+                {
+                  "key": "fields",
+                  "value": "*variants.calculated_price,%2Bvariants.inventory_quantity,*images,*categories"
+                }
+              ]
+            },
+            "description": "Use for the product detail page (URL slug = handle)."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const missing = [\"product_handle\"].filter(k => !pm.environment.get(k));",
+                  "if (missing.length) { console.warn('Skipping: run earlier steps first, missing ' + missing.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Product by id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/store/products/{{product_id}}?region_id={{region_id}}&fields=*variants.calculated_price,%2Bvariants.inventory_quantity",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "store",
+                "products",
+                "{{product_id}}"
+              ],
+              "query": [
+                {
+                  "key": "region_id",
+                  "value": "{{region_id}}"
+                },
+                {
+                  "key": "fields",
+                  "value": "*variants.calculated_price,%2Bvariants.inventory_quantity"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const missing = [\"product_id\"].filter(k => !pm.environment.get(k));",
+                  "if (missing.length) { console.warn('Skipping: run earlier steps first, missing ' + missing.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Search products",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/store/products?q=pickle&region_id={{region_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "store",
+                "products"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "pickle"
+                },
+                {
+                  "key": "region_id",
+                  "value": "{{region_id}}"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. Delivery check",
+      "description": "Custom endpoint. 503 `not_configured` until Shiprocket is set up: treat as unknown.",
+      "item": [
+        {
+          "name": "Pincode serviceability",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/store/shipping/serviceability?postcode=302001&weight_kg=0.5",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "store",
+                "shipping",
+                "serviceability"
+              ],
+              "query": [
+                {
+                  "key": "postcode",
+                  "value": "302001"
+                },
+                {
+                  "key": "weight_kg",
+                  "value": "0.5"
+                }
+              ]
+            },
+            "description": "Returns `{ postcode, serviceable, estimated_delivery_days }`. 400 for an invalid pincode; 503 when not configured."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is one of [200, 503]', () => pm.expect(pm.response.code).to.be.oneOf([200, 503]));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4. Cart",
+      "description": "Persist cart_id on the client. Create a new cart on 404.",
+      "item": [
+        {
+          "name": "Create cart",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/store/carts",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "store",
+                "carts"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"region_id\": \"{{region_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('cart_id', json.cart.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get cart",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/store/carts/{{cart_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "store",
+                "carts",
+                "{{cart_id}}"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const missing = [\"cart_id\"].filter(k => !pm.environment.get(k));",
+                  "if (missing.length) { console.warn('Skipping: run earlier steps first, missing ' + missing.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Add line item",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/store/carts/{{cart_id}}/line-items",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "store",
+                "carts",
+                "{{cart_id}}",
+                "line-items"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"variant_id\": \"{{variant_id}}\",\n  \"quantity\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const missing = [\"cart_id\", \"variant_id\"].filter(k => !pm.environment.get(k));",
+                  "if (missing.length) { console.warn('Skipping: run earlier steps first, missing ' + missing.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('line_item_id', json.cart.items[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update line item quantity",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/store/carts/{{cart_id}}/line-items/{{line_item_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "store",
+                "carts",
+                "{{cart_id}}",
+                "line-items",
+                "{{line_item_id}}"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantity\": 2\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const missing = [\"cart_id\", \"line_item_id\"].filter(k => !pm.environment.get(k));",
+                  "if (missing.length) { console.warn('Skipping: run earlier steps first, missing ' + missing.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Set email + addresses",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/store/carts/{{cart_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "store",
+                "carts",
+                "{{cart_id}}"
+              ]
+            },
+            "description": "country_code must be `in`; 6-digit postal_code; phone and province (state) required for courier booking.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"customer@example.com\",\n  \"shipping_address\": {\n    \"first_name\": \"Asha\",\n    \"last_name\": \"Verma\",\n    \"address_1\": \"12 MG Road\",\n    \"address_2\": \"\",\n    \"city\": \"Jaipur\",\n    \"province\": \"Rajasthan\",\n    \"postal_code\": \"302001\",\n    \"country_code\": \"in\",\n    \"phone\": \"+919876543210\"\n  },\n  \"billing_address\": {\n    \"first_name\": \"Asha\",\n    \"last_name\": \"Verma\",\n    \"address_1\": \"12 MG Road\",\n    \"address_2\": \"\",\n    \"city\": \"Jaipur\",\n    \"province\": \"Rajasthan\",\n    \"postal_code\": \"302001\",\n    \"country_code\": \"in\",\n    \"phone\": \"+919876543210\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const missing = [\"cart_id\"].filter(k => !pm.environment.get(k));",
+                  "if (missing.length) { console.warn('Skipping: run earlier steps first, missing ' + missing.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Remove line item (optional)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/store/carts/{{cart_id}}/line-items/{{line_item_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "store",
+                "carts",
+                "{{cart_id}}",
+                "line-items",
+                "{{line_item_id}}"
+              ]
+            },
+            "description": "Skip this when running the full flow."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const missing = [\"cart_id\", \"line_item_id\"].filter(k => !pm.environment.get(k));",
+                  "if (missing.length) { console.warn('Skipping: run earlier steps first, missing ' + missing.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5. Shipping",
+      "description": "Options and fees are configured by the business in the admin.",
+      "item": [
+        {
+          "name": "List shipping options for cart",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/store/shipping-options?cart_id={{cart_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "store",
+                "shipping-options"
+              ],
+              "query": [
+                {
+                  "key": "cart_id",
+                  "value": "{{cart_id}}"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const missing = [\"cart_id\"].filter(k => !pm.environment.get(k));",
+                  "if (missing.length) { console.warn('Skipping: run earlier steps first, missing ' + missing.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "const json = pm.response.json();",
+                  "pm.expect(json.shipping_options.length, 'shipping options configured').to.be.above(0);",
+                  "pm.environment.set('shipping_option_id', json.shipping_options[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Add shipping method",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/store/carts/{{cart_id}}/shipping-methods",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "store",
+                "carts",
+                "{{cart_id}}",
+                "shipping-methods"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"option_id\": \"{{shipping_option_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const missing = [\"cart_id\", \"shipping_option_id\"].filter(k => !pm.environment.get(k));",
+                  "if (missing.length) { console.warn('Skipping: run earlier steps first, missing ' + missing.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "6. Payment",
+      "description": "Razorpay: open Checkout with session data, then complete the cart (folder 7).",
+      "item": [
+        {
+          "name": "Create payment collection",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/store/payment-collections",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "store",
+                "payment-collections"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cart_id\": \"{{cart_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const missing = [\"cart_id\"].filter(k => !pm.environment.get(k));",
+                  "if (missing.length) { console.warn('Skipping: run earlier steps first, missing ' + missing.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('payment_collection_id', json.payment_collection.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Init Razorpay session",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/store/payment-collections/{{payment_collection_id}}/payment-sessions",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "store",
+                "payment-collections",
+                "{{payment_collection_id}}",
+                "payment-sessions"
+              ]
+            },
+            "description": "Returns session `data`: `razorpay_order_id`, `amount` (PAISE), `currency`, `key_id`.\nNeeds Razorpay keys on the backend and Razorpay enabled on the India region.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"provider_id\": \"pp_razorpay_razorpay\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const missing = [\"payment_collection_id\"].filter(k => !pm.environment.get(k));",
+                  "if (missing.length) { console.warn('Skipping: run earlier steps first, missing ' + missing.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "const json = pm.response.json();",
+                  "const s = json.payment_collection.payment_sessions.find(s => s.provider_id === 'pp_razorpay_razorpay');",
+                  "pm.environment.set('razorpay_order_id', s.data.razorpay_order_id);",
+                  "console.log('Open Razorpay Checkout with', s.data);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Init manual session (dev only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/store/payment-collections/{{payment_collection_id}}/payment-sessions",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "store",
+                "payment-collections",
+                "{{payment_collection_id}}",
+                "payment-sessions"
+              ]
+            },
+            "description": "Development only: lets you complete an order without Razorpay. Remove this provider from the region before going live.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"provider_id\": \"pp_system_default\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const missing = [\"payment_collection_id\"].filter(k => !pm.environment.get(k));",
+                  "if (missing.length) { console.warn('Skipping: run earlier steps first, missing ' + missing.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "7. Complete order",
+      "description": "Only show 'order placed' when this returns type=order.",
+      "item": [
+        {
+          "name": "Complete cart",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/store/carts/{{cart_id}}/complete",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "store",
+                "carts",
+                "{{cart_id}}",
+                "complete"
+              ]
+            },
+            "description": "type=order → success. type=cart → payment not confirmed yet (retry after a few seconds) or error."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const missing = [\"cart_id\"].filter(k => !pm.environment.get(k));",
+                  "if (missing.length) { console.warn('Skipping: run earlier steps first, missing ' + missing.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "const json = pm.response.json();",
+                  "if (json.type === 'order') { pm.environment.set('order_id', json.order.id); }",
+                  "else { console.warn('Not completed:', json.error); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get order",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/store/orders/{{order_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "store",
+                "orders",
+                "{{order_id}}"
+              ]
+            },
+            "description": "Confirmation page: display_id, items, total, shipping_address, fulfillment_status."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const missing = [\"order_id\"].filter(k => !pm.environment.get(k));",
+                  "if (missing.length) { console.warn('Skipping: run earlier steps first, missing ' + missing.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "8. Customer account",
+      "description": "Optional. Guest checkout works without this.",
+      "item": [
+        {
+          "name": "Register (get registration token)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/customer/emailpass/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "customer",
+                "emailpass",
+                "register"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{customer_email}}\",\n  \"password\": \"{{customer_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('customer_token', json.token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create customer profile",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/store/customers",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "store",
+                "customers"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{customer_email}}\",\n  \"first_name\": \"Asha\",\n  \"last_name\": \"Verma\",\n  \"phone\": \"+919876543210\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const missing = [\"customer_token\"].filter(k => !pm.environment.get(k));",
+                  "if (missing.length) { console.warn('Skipping: run earlier steps first, missing ' + missing.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/customer/emailpass",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "customer",
+                "emailpass"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{customer_email}}\",\n  \"password\": \"{{customer_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('customer_token', json.token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Me",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/store/customers/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "store",
+                "customers",
+                "me"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const missing = [\"customer_token\"].filter(k => !pm.environment.get(k));",
+                  "if (missing.length) { console.warn('Skipping: run earlier steps first, missing ' + missing.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Add address",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/store/customers/me/addresses",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "store",
+                "customers",
+                "me",
+                "addresses"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"first_name\": \"Asha\",\n  \"last_name\": \"Verma\",\n  \"address_1\": \"12 MG Road\",\n  \"address_2\": \"\",\n  \"city\": \"Jaipur\",\n  \"province\": \"Rajasthan\",\n  \"postal_code\": \"302001\",\n  \"country_code\": \"in\",\n  \"phone\": \"+919876543210\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const missing = [\"customer_token\"].filter(k => !pm.environment.get(k));",
+                  "if (missing.length) { console.warn('Skipping: run earlier steps first, missing ' + missing.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List addresses",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/store/customers/me/addresses",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "store",
+                "customers",
+                "me",
+                "addresses"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const missing = [\"customer_token\"].filter(k => !pm.environment.get(k));",
+                  "if (missing.length) { console.warn('Skipping: run earlier steps first, missing ' + missing.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Transfer guest cart to customer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/store/carts/{{cart_id}}/customer",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "store",
+                "carts",
+                "{{cart_id}}",
+                "customer"
+              ]
+            },
+            "description": "Call after login so the current cart belongs to the customer."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const missing = [\"customer_token\", \"cart_id\"].filter(k => !pm.environment.get(k));",
+                  "if (missing.length) { console.warn('Skipping: run earlier steps first, missing ' + missing.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "My orders",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/store/orders",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "store",
+                "orders"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const missing = [\"customer_token\"].filter(k => !pm.environment.get(k));",
+                  "if (missing.length) { console.warn('Skipping: run earlier steps first, missing ' + missing.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
