@@ -100,6 +100,28 @@ npm run services:status
 
 Redis backs the event bus, workflow engine, locking and sessions.
 
+## Sample catalog (development / demos)
+
+```bash
+cd apps/backend
+SAMPLE_IMAGE_BASE_URL=http://localhost:3000 npm run seed:sample
+```
+
+Creates Pickles / Makhana / Sweets categories with subcategories, 8 products, 3 collections
+with banners (Best Sellers, Grandma's Specials, Diwali Gifting) and Standard/Express delivery
+options. It also gives a sample price to existing unpriced products. **Prices, stock and delivery fees are
+sample values** (`metadata.sample_data = true`); replace them before going live. Safe to run
+again: nothing is duplicated. Images are served by the storefront (`public/images/home`).
+
+Storefront content set in the admin as **metadata**:
+
+| Where | Key | Used for |
+|---|---|---|
+| Collection | `banner_url`, `banner_mobile_url`, `banner_alt` | collection page hero + menu image |
+| Collection | `description`, `subtitle`, `badge`, `highlights` (JSON list) | menu and collection page text |
+| Category | `image_url`, `badge` | header categories menu |
+| Product | `featured: true` | shown first in home Bestsellers |
+
 ## Admin: what to do first
 
 1. **Settings > Locations & Shipping**: fill in the pickup address; create shipping option(s) and fees.
