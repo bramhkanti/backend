@@ -1,6 +1,6 @@
 {
   "info": {
-    "_postman_id": "37a495b5-68d5-4f47-9d2c-082995856dab",
+    "_postman_id": "bfc134e1-22db-4a8d-a525-93badd84e4b2",
     "name": "Bramhkanti Storefront API",
     "description": "Store API for the Bramhkanti storefront (Medusa 2.21.2 backend).\n\nSetup: import the environment file, set `publishable_key` (Admin > Settings > Publishable API Keys > 'Bramhkanti Storefront'), then run folders top to bottom. Test scripts save ids (region_id, product_id, variant_id, cart_id, payment_collection_id, order_id) into the environment automatically.\n\nMoney: amounts are rupees (major unit) and GST-inclusive, except Razorpay session `data.amount`, which is paise.\n\nFull guide: STOREFRONT_INTEGRATION.md",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
@@ -378,6 +378,314 @@
       ]
     },
     {
+      "name": "2b. Collections & categories",
+      "description": "Collections (e.g. Diwali Gifting) and categories (e.g. Pickles). `/:id` paths take ids; use `?handle=` to look up by slug.",
+      "item": [
+        {
+          "name": "List collections",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/store/collections?limit=20&offset=0",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "store",
+                "collections"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            },
+            "description": "Saves the first collection's `collection_id` and `collection_handle`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "const json = pm.response.json();",
+                  "if (json.collections.length) {",
+                  "  pm.environment.set('collection_id', json.collections[0].id);",
+                  "  pm.environment.set('collection_handle', json.collections[0].handle);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Collection by handle",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/store/collections?handle={{collection_handle}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "store",
+                "collections"
+              ],
+              "query": [
+                {
+                  "key": "handle",
+                  "value": "{{collection_handle}}"
+                }
+              ]
+            },
+            "description": "Collection page: URL slug = handle. Response is a list; use `collections[0]`."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const missing = [\"collection_handle\"].filter(k => !pm.environment.get(k));",
+                  "if (missing.length) { console.warn('Skipping: run earlier steps first, missing ' + missing.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Collection by id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/store/collections/{{collection_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "store",
+                "collections",
+                "{{collection_id}}"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const missing = [\"collection_id\"].filter(k => !pm.environment.get(k));",
+                  "if (missing.length) { console.warn('Skipping: run earlier steps first, missing ' + missing.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Products in collection",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/store/products?collection_id[]={{collection_id}}&region_id={{region_id}}&fields=*variants.calculated_price,%2Bvariants.inventory_quantity",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "store",
+                "products"
+              ],
+              "query": [
+                {
+                  "key": "collection_id[]",
+                  "value": "{{collection_id}}"
+                },
+                {
+                  "key": "region_id",
+                  "value": "{{region_id}}"
+                },
+                {
+                  "key": "fields",
+                  "value": "*variants.calculated_price,%2Bvariants.inventory_quantity"
+                }
+              ]
+            },
+            "description": "Use this (not `fields=*products` on the collection) so prices are calculated and only published products are returned."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const missing = [\"collection_id\"].filter(k => !pm.environment.get(k));",
+                  "if (missing.length) { console.warn('Skipping: run earlier steps first, missing ' + missing.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Category by handle",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/store/product-categories?handle=pickles",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "store",
+                "product-categories"
+              ],
+              "query": [
+                {
+                  "key": "handle",
+                  "value": "pickles"
+                }
+              ]
+            },
+            "description": "Saves `category_id`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "const json = pm.response.json();",
+                  "if (json.product_categories.length) { pm.environment.set('category_id', json.product_categories[0].id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Products in category",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/store/products?category_id[]={{category_id}}&region_id={{region_id}}&fields=*variants.calculated_price,%2Bvariants.inventory_quantity",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "store",
+                "products"
+              ],
+              "query": [
+                {
+                  "key": "category_id[]",
+                  "value": "{{category_id}}"
+                },
+                {
+                  "key": "region_id",
+                  "value": "{{region_id}}"
+                },
+                {
+                  "key": "fields",
+                  "value": "*variants.calculated_price,%2Bvariants.inventory_quantity"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const missing = [\"category_id\"].filter(k => !pm.environment.get(k));",
+                  "if (missing.length) { console.warn('Skipping: run earlier steps first, missing ' + missing.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "3. Delivery check",
       "description": "Custom endpoint. 503 `not_configured` until Shiprocket is set up: treat as unknown.",
       "item": [
@@ -676,6 +984,124 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"customer@example.com\",\n  \"shipping_address\": {\n    \"first_name\": \"Asha\",\n    \"last_name\": \"Verma\",\n    \"address_1\": \"12 MG Road\",\n    \"address_2\": \"\",\n    \"city\": \"Jaipur\",\n    \"province\": \"Rajasthan\",\n    \"postal_code\": \"302001\",\n    \"country_code\": \"in\",\n    \"phone\": \"+919876543210\"\n  },\n  \"billing_address\": {\n    \"first_name\": \"Asha\",\n    \"last_name\": \"Verma\",\n    \"address_1\": \"12 MG Road\",\n    \"address_2\": \"\",\n    \"city\": \"Jaipur\",\n    \"province\": \"Rajasthan\",\n    \"postal_code\": \"302001\",\n    \"country_code\": \"in\",\n    \"phone\": \"+919876543210\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const missing = [\"cart_id\"].filter(k => !pm.environment.get(k));",
+                  "if (missing.length) { console.warn('Skipping: run earlier steps first, missing ' + missing.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Apply promo code (optional)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/store/carts/{{cart_id}}/promotions",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "store",
+                "carts",
+                "{{cart_id}}",
+                "promotions"
+              ]
+            },
+            "description": "Promotions are created in the admin (Promotions). 400 if the code doesn't exist or doesn't apply.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"promo_codes\": [\n    \"{{promo_code}}\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const missing = [\"cart_id\"].filter(k => !pm.environment.get(k));",
+                  "if (missing.length) { console.warn('Skipping: run earlier steps first, missing ' + missing.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is one of [200, 400]', () => pm.expect(pm.response.code).to.be.oneOf([200, 400]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Remove promo code (optional)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/store/carts/{{cart_id}}/promotions",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "store",
+                "carts",
+                "{{cart_id}}",
+                "promotions"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"promo_codes\": [\n    \"{{promo_code}}\"\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1160,6 +1586,276 @@
       ]
     },
     {
+      "name": "8a. Mobile OTP login",
+      "description": "Passwordless login. With OTP_TEST_MODE=true no SMS is sent and the code is OTP_TEST_CODE (default 123456). See OTP_LOGIN.md.",
+      "item": [
+        {
+          "name": "Send OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/customer/phone-otp",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "customer",
+                "phone-otp"
+              ]
+            },
+            "description": "200 {location:'otp_sent'}. 401 with a message for invalid numbers or when asked again within 30 s.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{otp_phone}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/customer/phone-otp/callback",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "customer",
+                "phone-otp",
+                "callback"
+              ]
+            },
+            "description": "Returns a token. If the number is new it's a registration token: run the next two requests.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{otp_phone}}\",\n  \"otp\": \"{{otp_code}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('customer_token', json.token);",
+                  "const payload = JSON.parse(atob(json.token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));",
+                  "pm.environment.set('otp_needs_registration', payload.actor_id ? '' : 'true');",
+                  "console.log(payload.actor_id ? 'Existing customer: logged in' : 'New number: run Register next');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register new OTP customer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/store/phone-auth/customer",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "store",
+                "phone-auth",
+                "customer"
+              ]
+            },
+            "description": "Only for new numbers. 400 'Already registered' if the number already has an account.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"first_name\": \"Asha\",\n  \"last_name\": \"Verma\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const missing = [\"customer_token\"].filter(k => !pm.environment.get(k));",
+                  "if (missing.length) { console.warn('Skipping: run earlier steps first, missing ' + missing.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is one of [201, 400]', () => pm.expect(pm.response.code).to.be.oneOf([201, 400]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresh to customer token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/token/refresh",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "token",
+                "refresh"
+              ]
+            },
+            "description": "Turns the registration token into a customer token. Harmless for existing customers."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const missing = [\"customer_token\"].filter(k => !pm.environment.get(k));",
+                  "if (missing.length) { console.warn('Skipping: run earlier steps first, missing ' + missing.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('customer_token', json.token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Me (OTP customer)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/store/customers/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "store",
+                "customers",
+                "me"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const missing = [\"customer_token\"].filter(k => !pm.environment.get(k));",
+                  "if (missing.length) { console.warn('Skipping: run earlier steps first, missing ' + missing.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "8. Customer account",
       "description": "Optional. Guest checkout works without this.",
       "item": [
@@ -1375,6 +2071,68 @@
           ]
         },
         {
+          "name": "Update profile",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/store/customers/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "store",
+                "customers",
+                "me"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"first_name\": \"Asha\",\n  \"last_name\": \"Verma\",\n  \"phone\": \"+919876543210\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const missing = [\"customer_token\"].filter(k => !pm.environment.get(k));",
+                  "if (missing.length) { console.warn('Skipping: run earlier steps first, missing ' + missing.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Add address",
           "request": {
             "method": "POST",
@@ -1431,7 +2189,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('address_id', json.customer.addresses[json.customer.addresses.length - 1].id);"
                 ]
               }
             }
@@ -1472,6 +2232,57 @@
                 "type": "text/javascript",
                 "exec": [
                   "const missing = [\"customer_token\"].filter(k => !pm.environment.get(k));",
+                  "if (missing.length) { console.warn('Skipping: run earlier steps first, missing ' + missing.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete address",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "x-publishable-api-key",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/store/customers/me/addresses/{{address_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "store",
+                "customers",
+                "me",
+                "addresses",
+                "{{address_id}}"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const missing = [\"customer_token\", \"address_id\"].filter(k => !pm.environment.get(k));",
                   "if (missing.length) { console.warn('Skipping: run earlier steps first, missing ' + missing.join(', ')); pm.execution.skipRequest(); }"
                 ]
               }
@@ -1552,13 +2363,27 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/store/orders",
+              "raw": "{{base_url}}/store/orders?limit=20&offset=0&order=-created_at",
               "host": [
                 "{{base_url}}"
               ],
               "path": [
                 "store",
                 "orders"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                },
+                {
+                  "key": "order",
+                  "value": "-created_at"
+                }
               ]
             },
             "description": ""

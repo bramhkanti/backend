@@ -12,8 +12,10 @@ Backend: Medusa **2.21.2**. Official references:
 
 - `Bramhkanti-Storefront.postman_collection.json`: every storefront call below, in checkout order
 - `Bramhkanti-Local.postman_environment.json` / `Bramhkanti-Production.postman_environment.json`
+- `Bramhkanti-Render.postman_environment.json`: the current Render deployment, publishable key already filled in
 
-Import all three, pick an environment, set `publishable_key`, and run folders **1 → 7** in order.
+Import the collection and an environment, set `publishable_key` if it's empty, and run folders **1 → 7** in order.
+Folder **2b** covers collections (e.g. Diwali Gifting) and categories (e.g. Pickles).
 Test scripts save `region_id`, `product_id`, `variant_id`, `cart_id`, `payment_collection_id`
 and `order_id` automatically; requests whose inputs are missing are skipped with a console note.
 Folder 8 (customer account) creates a real customer. Use a test email.
@@ -165,6 +167,31 @@ when `inventory_quantity <= 0` (inventory is tracked).
 `GET /store/product-categories` → `sdk.store.category.list()`. Products are in "Pickles".
 
 ## 5. Customers (optional; guest checkout works)
+
+### Mobile OTP login (primary)
+
+Full details: [OTP_LOGIN.md](OTP_LOGIN.md).
+
+```ts
+// 1. send code
+await sdk.client.fetch("/auth/customer/phone-otp", { method: "POST", body: { phone } })
+// 2. verify → token (registration token if the number is new)
+const { token } = await sdk.client.fetch("/auth/customer/phone-otp/callback", {
+  method: "POST", body: { phone, otp },
+})
+// 3. new number only: create the customer, then refresh to a customer token
+await sdk.client.fetch("/store/phone-auth/customer", {
+  method: "POST", headers: { authorization: `Bearer ${token}` }, body: { first_name, last_name },
+})
+const { token: customerToken } = await sdk.client.fetch("/auth/token/refresh", {
+  method: "POST", headers: { authorization: `Bearer ${token}` },
+})
+```
+
+A token is a registration token when its JWT payload has an empty `actor_id`.
+Keep the token server-side (httpOnly cookie), never in localStorage.
+
+### Email + password (also available)
 
 Register:
 
