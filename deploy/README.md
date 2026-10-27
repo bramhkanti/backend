@@ -133,9 +133,11 @@ Put the `pk_...` value into `.env` as `MEDUSA_PUBLISHABLE_KEY=`.
 prices and stock are placeholders, marked `sample_data` in the admin):
 
 ```bash
-docker compose exec -e SAMPLE_IMAGE_BASE_URL=https://SHOP_DOMAIN/images/home \
+docker compose exec -e SAMPLE_IMAGE_BASE_URL=https://SHOP_DOMAIN \
   medusa npx medusa exec ./src/scripts/seed-sample-catalog.js
 ```
+
+Use the bare shop URL: the script adds `/images/home/<file>` itself.
 
 **B. Empty store:** add products, categories, collections and delivery options in the admin.
 
