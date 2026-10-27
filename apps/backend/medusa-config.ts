@@ -196,6 +196,25 @@ module.exports = defineConfig({
             },
           },
         ]
-      : []),
+      : [
+          // Local disk (the `static` folder). The public URL must use the real
+          // backend domain, or saved image links point at localhost.
+          {
+            resolve: "@medusajs/medusa/file",
+            options: {
+              providers: [
+                {
+                  resolve: "@medusajs/medusa/file-local",
+                  id: "local",
+                  options: {
+                    backend_url: `${(
+                      process.env.MEDUSA_BACKEND_URL || "http://localhost:9000"
+                    ).replace(/\/+$/, "")}/static`,
+                  },
+                },
+              ],
+            },
+          },
+        ]),
   ],
 })

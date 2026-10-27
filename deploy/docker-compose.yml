@@ -1,0 +1,142 @@
+# Production stack: Postgres, Redis, Medusa (API + admin), Next.js storefront, Caddy (HTTPS).
+#
+# Expected layout on the server:
+#   /opt/bramhkanti/backend      <- this repository (compose file in backend/deploy)
+#   /opt/bramhkanti/storefront   <- the storefront repository
+#
+# All settings come from deploy/.env (copy .env.example). See deploy/README.md.
+
+name: bramhkanti
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bramhkanti}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+      POSTGRES_DB: ${POSTGRES_DB:-bramhkanti_medusa}
+    # Sized for a 4 GB server shared with the apps.
+    command:
+      - postgres
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - effective_cache_size=768MB
+      - -c
+      - work_mem=8MB
+      - -c
+      - max_connections=60
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *logging
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # Medusa keeps workflow and event state in Redis, so never evict keys.
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *logging
+
+  medusa:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: bramhkanti/backend:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://${POSTGRES_USER:-bramhkanti}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bramhkanti_medusa}?sslmode=disable
+      REDIS_URL: redis://redis:6379
+      MEDUSA_BACKEND_URL: https://${API_DOMAIN}
+      STORE_CORS: https://${SHOP_DOMAIN}
+      ADMIN_CORS: https://${API_DOMAIN}
+      AUTH_CORS: https://${SHOP_DOMAIN},https://${API_DOMAIN}
+    # Only on the server's loopback: used while building the storefront and for SSH tunnels.
+    ports:
+      - "127.0.0.1:${MEDUSA_HOST_PORT:-9000}:9000"
+    volumes:
+      - medusa_static:/repo/apps/backend/.medusa/server/static
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    logging: *logging
+
+  storefront:
+    build:
+      context: ${STOREFRONT_DIR:-../../storefront}
+      dockerfile: Dockerfile
+      # The build prerenders catalog pages from Medusa through 127.0.0.1:9000,
+      # so medusa must be running before `docker compose build storefront`.
+      network: host
+      args:
+        API_ADAPTER: medusa
+        API_BASE_URL: ${STOREFRONT_BUILD_API_URL:-http://127.0.0.1:9000}
+        MEDUSA_PUBLISHABLE_KEY: ${MEDUSA_PUBLISHABLE_KEY:-}
+        NEXT_PUBLIC_SITE_URL: https://${SHOP_DOMAIN}
+        NEXT_PUBLIC_BRAND_NAME: ${NEXT_PUBLIC_BRAND_NAME:-Bramhkanti}
+        NEXT_PUBLIC_SUPPORT_EMAIL: ${NEXT_PUBLIC_SUPPORT_EMAIL:-}
+        NEXT_PUBLIC_WHATSAPP_NUMBER: ${NEXT_PUBLIC_WHATSAPP_NUMBER:-}
+        NEXT_PUBLIC_FSSAI_LICENSE_NUMBER: ${NEXT_PUBLIC_FSSAI_LICENSE_NUMBER:-}
+        NEXT_PUBLIC_GA_MEASUREMENT_ID: ${NEXT_PUBLIC_GA_MEASUREMENT_ID:-}
+    image: bramhkanti/storefront:latest
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      API_ADAPTER: medusa
+      API_BASE_URL: http://medusa:9000
+      MEDUSA_PUBLISHABLE_KEY: ${MEDUSA_PUBLISHABLE_KEY:-}
+      REVALIDATE_SECRET: ${REVALIDATE_SECRET:-}
+      NEXT_PUBLIC_SITE_URL: https://${SHOP_DOMAIN}
+    depends_on:
+      medusa:
+        condition: service_healthy
+    logging: *logging
+
+  caddy:
+    image: caddy:2.9-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      SHOP_DOMAIN: ${SHOP_DOMAIN}
+      API_DOMAIN: ${API_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - storefront
+      - medusa
+    logging: *logging
+
+volumes:
+  pgdata:
+  redisdata:
+  medusa_static:
+  caddy_data:
+  caddy_config:
