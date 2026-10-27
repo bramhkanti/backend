@@ -29,6 +29,13 @@ if (isProduction) {
   }
 }
 
+// OTP test mode: no SMS is sent and OTP_TEST_CODE logs in any number.
+// Defaults to ON only while no real SMS provider is configured.
+const OTP_TEST_MODE =
+  process.env.OTP_TEST_MODE !== undefined
+    ? process.env.OTP_TEST_MODE === "true"
+    : !process.env.SMS_PROVIDER || process.env.SMS_PROVIDER === "test"
+
 module.exports = defineConfig({
   projectConfig: {
     databaseUrl: requireEnv("DATABASE_URL"),
@@ -67,6 +74,52 @@ module.exports = defineConfig({
             id: "locking-redis",
             is_default: true,
             options: { redisUrl: REDIS_URL },
+          },
+        ],
+      },
+    },
+    {
+      resolve: "@medusajs/medusa/auth",
+      options: {
+        providers: [
+          {
+            resolve: "@medusajs/medusa/auth-emailpass",
+            id: "emailpass",
+          },
+          // Mobile number + SMS OTP login for customers. See OTP_LOGIN.md.
+          {
+            resolve: "./src/modules/phone-auth",
+            id: "phone-otp",
+            options: {
+              provider: process.env.SMS_PROVIDER || "test",
+              test_mode: OTP_TEST_MODE,
+              test_code: process.env.OTP_TEST_CODE || "123456",
+              hash_secret:
+                process.env.OTP_HASH_SECRET ||
+                process.env.JWT_SECRET ||
+                "supersecret",
+              otp_expiry_minutes: Number(process.env.OTP_EXPIRY_MINUTES || 5),
+              resend_cooldown_seconds: Number(
+                process.env.OTP_RESEND_COOLDOWN_SECONDS || 30
+              ),
+              max_sends_per_hour: Number(process.env.OTP_MAX_SENDS_PER_HOUR || 5),
+              max_verify_attempts: Number(process.env.OTP_MAX_VERIFY_ATTEMPTS || 5),
+              msg91: {
+                auth_key: process.env.MSG91_AUTH_KEY,
+                template_id: process.env.MSG91_TEMPLATE_ID,
+              },
+              fast2sms: {
+                api_key: process.env.FAST2SMS_API_KEY,
+                sender_id: process.env.FAST2SMS_SENDER_ID,
+                template_id: process.env.FAST2SMS_TEMPLATE_ID,
+              },
+              twilio: {
+                account_sid: process.env.TWILIO_ACCOUNT_SID,
+                auth_token: process.env.TWILIO_AUTH_TOKEN,
+                from: process.env.TWILIO_FROM,
+                messaging_service_sid: process.env.TWILIO_MESSAGING_SERVICE_SID,
+              },
+            },
           },
         ],
       },

@@ -8,6 +8,7 @@ admin dashboard, PostgreSQL 16, Redis 7. The storefront lives in a separate repo
 | [STOREFRONT_INTEGRATION.md](STOREFRONT_INTEGRATION.md) | storefront developer |
 | [PAYMENTS_SETUP.md](PAYMENTS_SETUP.md) | Razorpay |
 | [SHIPPING_SETUP.md](SHIPPING_SETUP.md) | delivery, Shiprocket |
+| [OTP_LOGIN.md](OTP_LOGIN.md) | mobile OTP login, SMS providers, test mode |
 | [PRODUCTION_DEPLOYMENT.md](PRODUCTION_DEPLOYMENT.md) | going live on a VPS |
 | [postman/](postman/) | Postman collection + environments for the Store API |
 
@@ -24,9 +25,12 @@ bramhkanti-backend/
         ├── migration-scripts/initial-data-seed.ts   # India store structure (runs once on migrate)
         ├── modules/razorpay/                         # payment provider
         ├── modules/shiprocket/                       # fulfillment provider + API client
+        ├── modules/phone-auth/                       # mobile OTP login + SMS providers
+        ├── workflows/register-phone-customer.ts      # customer for a new OTP login
         └── api/
             ├── store/brand/                          # public logo/name/tagline
             ├── store/shipping/serviceability/        # pincode check
+            ├── store/phone-auth/customer/            # register a new OTP customer
             ├── admin/shiprocket/fulfillments/[id]/pickup/
             └── hooks/courier-tracking/               # Shiprocket tracking webhook
 ```
@@ -96,6 +100,28 @@ npm run services:status
 
 Redis backs the event bus, workflow engine, locking and sessions.
 
+## Sample catalog (development / demos)
+
+```bash
+cd apps/backend
+SAMPLE_IMAGE_BASE_URL=http://localhost:3000 npm run seed:sample
+```
+
+Creates Pickles / Makhana / Sweets categories with subcategories, 8 products, 3 collections
+with banners (Best Sellers, Grandma's Specials, Diwali Gifting) and Standard/Express delivery
+options. It also gives a sample price to existing unpriced products. **Prices, stock and delivery fees are
+sample values** (`metadata.sample_data = true`); replace them before going live. Safe to run
+again: nothing is duplicated. Images are served by the storefront (`public/images/home`).
+
+Storefront content set in the admin as **metadata**:
+
+| Where | Key | Used for |
+|---|---|---|
+| Collection | `banner_url`, `banner_mobile_url`, `banner_alt` | collection page hero + menu image |
+| Collection | `description`, `subtitle`, `badge`, `highlights` (JSON list) | menu and collection page text |
+| Category | `image_url`, `badge` | header categories menu |
+| Product | `featured: true` | shown first in home Bestsellers |
+
 ## Admin: what to do first
 
 1. **Settings > Locations & Shipping**: fill in the pickup address; create shipping option(s) and fees.
@@ -122,6 +148,7 @@ delivery zone (manual provider) · Category "Pickles" · Product option "Jar Siz
 | Shiprocket | API user, pickup location, box size, webhook ([SHIPPING_SETUP.md](SHIPPING_SETUP.md)) |
 | Image storage (prod) | S3/R2 bucket + `S3_*` env |
 | Public URL | needed for Razorpay/Shiprocket webhooks |
+| SMS for OTP login | provider account + DLT template; until then OTP test mode is on ([OTP_LOGIN.md](OTP_LOGIN.md)) |
 | Transactional email | not configured (order confirmation emails), add a notification provider later |
 
 ## Scripts
