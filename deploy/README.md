@@ -150,7 +150,12 @@ The storefront build reads the catalog from Medusa, so Medusa must be running (s
 
 ```bash
 cd /opt/bramhkanti/backend/deploy
-docker compose build storefront      # 3-6 minutes on 2 vCPU
+# The build reads the catalog from Medusa over the host network. Newer Docker
+# requires an explicit permission for that, which `docker compose build` can't pass,
+# so export the build plan and run it with buildx:
+docker compose build --print storefront > /tmp/storefront-bake.json   # "No services to build" warning is harmless
+docker buildx bake -f /tmp/storefront-bake.json --allow=network.host --load storefront   # 3-6 minutes
+rm /tmp/storefront-bake.json
 docker compose up -d
 docker compose ps                    # all "running", medusa and storefront "healthy"
 docker compose logs -f caddy         # look for "certificate obtained successfully"
@@ -193,7 +198,9 @@ cd /opt/bramhkanti/storefront && git pull
 cd /opt/bramhkanti/backend/deploy
 
 docker compose up -d --build medusa      # migrations run automatically on start
-docker compose build storefront && docker compose up -d storefront
+docker compose build --print storefront > /tmp/storefront-bake.json
+docker buildx bake -f /tmp/storefront-bake.json --allow=network.host --load storefront
+rm /tmp/storefront-bake.json && docker compose up -d storefront
 docker image prune -f                    # remove old images
 ```
 
