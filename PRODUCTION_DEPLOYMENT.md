@@ -1,5 +1,9 @@
 # Production Go-Live Guide
 
+> **Docker deployment (recommended):** see [deploy/README.md](deploy/README.md). It runs
+> Postgres, Redis, Medusa, the storefront and HTTPS on one server with `docker compose`.
+> This page describes the older pm2 + Nginx setup and the go-live steps for payments and shipping.
+
 Step-by-step to put the Bramhkanti backend + admin live at **`https://api.bramhkanti.com`**
 (admin at `https://api.bramhkanti.com/app`). The storefront (`https://bramhkanti.com`) is
 deployed separately by the storefront developer.

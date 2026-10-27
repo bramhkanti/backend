@@ -1,0 +1,15 @@
+.git
+**/node_modules
+**/.medusa
+**/.turbo
+**/dist
+**/static
+**/.env
+**/.env.*
+!**/.env.example
+.logs
+postman
+deploy/.env
+deploy/backups
+*.log
+.DS_Store

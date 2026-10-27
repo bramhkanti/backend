@@ -60,3 +60,6 @@ Thumbs.db
 
 # Env examples are committed
 !.env.example
+
+# Deployment
+deploy/backups/
