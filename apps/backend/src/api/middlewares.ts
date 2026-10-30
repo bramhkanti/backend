@@ -4,7 +4,9 @@ import {
   defineMiddlewares,
   validateAndTransformBody,
 } from '@medusajs/framework/http'
+import { UpdateReviewStatusSchema } from './admin/product-reviews/status/route'
 import { RegisterPhoneCustomerSchema } from './store/phone-auth/customer/route'
+import { CreateProductReviewSchema } from './store/reviews/route'
 
 export default defineMiddlewares({
   routes: [
@@ -29,6 +31,20 @@ export default defineMiddlewares({
         authenticate('customer', ['bearer'], { allowUnregistered: true }),
         validateAndTransformBody(RegisterPhoneCustomerSchema),
       ],
+    },
+    // Only logged-in customers can review.
+    {
+      method: ['POST'],
+      matcher: '/store/reviews',
+      middlewares: [
+        authenticate('customer', ['bearer', 'session']),
+        validateAndTransformBody(CreateProductReviewSchema),
+      ],
+    },
+    {
+      method: ['POST'],
+      matcher: '/admin/product-reviews/status',
+      middlewares: [validateAndTransformBody(UpdateReviewStatusSchema)],
     },
   ],
 })

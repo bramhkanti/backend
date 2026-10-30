@@ -71,6 +71,8 @@ services:
       STORE_CORS: https://${SHOP_DOMAIN}
       ADMIN_CORS: https://${API_DOMAIN}
       AUTH_CORS: https://${SHOP_DOMAIN},https://${API_DOMAIN}
+      # Approving a review refreshes the storefront cache (uses REVALIDATE_SECRET).
+      STOREFRONT_URL: http://storefront:3000
     # Only on the server's loopback: used while building the storefront and for SSH tunnels.
     ports:
       - "127.0.0.1:${MEDUSA_HOST_PORT:-9000}:9000"
