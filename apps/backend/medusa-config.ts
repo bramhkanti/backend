@@ -124,6 +124,10 @@ module.exports = defineConfig({
         ],
       },
     },
+    // Customer ratings and reviews, moderated in the admin (Reviews page).
+    {
+      resolve: "./src/modules/product-review",
+    },
     {
       resolve: "@medusajs/medusa/payment",
       options: {
